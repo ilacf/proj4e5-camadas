@@ -1,0 +1,5 @@
+crc = dividir payload por chave previamente decidida. raramente a divisao vai ser a mesma, entao saber o resultado garante que mandamos o payload certo
+
+resto (resultado) tem sempre um bit a menos do que a chave
+
+mandamos no head o crc1 e o crc2 q vao conter a o conteudo do resto, e ai quem recebe faz a divisao dnv para ver se o resto da igual usando a chave previamente combinada
