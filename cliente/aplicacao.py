@@ -15,6 +15,14 @@ def envio(eop, pedacos, head_receb, com1):
     i = 0
     x = 0
     while i < qntd_pacotes:
+        # simulando erro de arquivo fora de ordem
+        # if i == 1:
+        #     payload = pedacos[i+1]
+
+        # simulando erro de arquivo sendo enviado repetidamente
+        # if i == 1:
+        #     payload = pedacos[i-1]
+
         payload = pedacos[i]
 
         enviar_prox = False
@@ -27,8 +35,7 @@ def envio(eop, pedacos, head_receb, com1):
         h5 = (tamanho_pl).to_bytes(1, byteorder='big')
         h6 = (i).to_bytes(1, byteorder='big')
         h7 = (x).to_bytes(1, byteorder='big')
-        h8_9 = CRC.checksum(payload).to_bytes(2, byteorder='big') # crcs
-
+        h8_9 = (CRC.checksum(payload)).to_bytes(2, byteorder='big') # crcs
         head_pacote = h0 + h1 + h2 + h3 + h4 + h5 + h6 + h7 + h8_9
 
         com1.sendData(np.asarray(head_pacote + payload + eop))
@@ -95,6 +102,7 @@ def arquivo(nome, head, pl, eop, env_receb, tipo_de_erro=''):
         conteudo += " / handshake"
     with open(f"{nome}", "a") as file:
         file.write(conteudo)
+        file.write("\n")
 
 def main():
     try:
