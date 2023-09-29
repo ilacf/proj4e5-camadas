@@ -2,25 +2,25 @@ from enlace import *
 from enlaceRx import *
 import time
 import numpy as np
+from datetime import datetime
 
 #   python -m serial.tools.list_ports
 
-serialName = "COM3"
+serialName = "COM6"
 
 def envio(eop, pedacos, head_receb, com1):
-    qntd_pacotes = head_receb[3]
+    qntd_pacotes = len(pedacos)
     i = 0
     x = 0
-    timer2 = time.time()-0.15
-    while i <= qntd_pacotes:
+    while i < qntd_pacotes:
         enviar_prox = False
         tamanho_pl = len(pedacos[i])
         h0 = (3).to_bytes(1, byteorder="big")
         h1 = b'\x00'
         h2 = b'\x00'
-        h3 = qntd_pacotes
+        h3 = (qntd_pacotes).to_bytes(1, byteorder='big')
         h4 = (i).to_bytes(1, byteorder='big')
-        h5 = tamanho_pl
+        h5 = (tamanho_pl).to_bytes(1, byteorder='big')
         h6 = (i).to_bytes(1, byteorder='big')
         h7 = (x).to_bytes(1, byteorder='big')
         h8 = b'\x00' # crc1
@@ -32,42 +32,67 @@ def envio(eop, pedacos, head_receb, com1):
         com1.sendData(np.asarray(head_pacote + payload + eop))
         time.sleep(0.1)
         print("enviando pacote (mensagem t3)")
+        arquivo('arquivo1.txt', head_pacote, payload, eop, 'envio')
 
+        timer2 = time.time()
         if time.time()-timer2 < 20:
 
             timer1 = time.time()
             while time.time()-timer1 < 5:
-                print("iniciou timer1 de 5 segundos")
                 if com1.rx.getIsEmpty() == False:
                     head_confirm, _ = com1.getData(10)
                     confirm, _ = com1.getData(head_confirm[5])
                     eop_confirm, _ = com1.getData(4)
-                    if eop_confirm == eop and head_confirm[0] == (4).to_bytes(1, byteorder='big'):
+                    if eop_confirm == eop and head_confirm[0] == 4:
                         # aa = recebeu certo, bb = recebeu errado, cc = recebeu ultimo
                         if confirm == b'\xaa':
                             print(f"confirmou recebimento do pacote {i} corretamente")
+                            arquivo('arquivo1.txt', head_confirm, confirm, eop_confirm, 'receb')                  
                             i += 1
                             enviar_prox = True
                             break
-                        elif confirm == b'\xbb': # recebeu mensagem t6
+                        elif confirm == b'\xbb': # recebeu mensagem t6 que arquivo foi corrompido
                             print(f"recebeu pacote {i} corrompido")
                             enviar_prox = True
                             break
-                        elif confirm == b'\xcc':
+                        elif confirm == b'\xcc': # recebeu mensagem t6 que o arquivo veio fora de ordem
+                            print("recebeu pacote fora de ordem ou repetido")
+                            if head_confirm[2] == b'\xaa':
+                                arquivo('arquivo2.txt', head_confirm, confirm, eop_confirm, 'receb', 'fora de ordem')
+                            elif head_confirm[2] == b'\xbb':
+                                arquivo('arquivo2.txt', head_confirm, confirm, eop_confirm, 'receb', 'repetido')
+                        elif confirm == b'\xdd':
                             print(f"terminou de receber os pacotes corretamente")
                             return True
+                        
             if enviar_prox == True:
                 continue        
             print("servidor nao respondeu, reenviando pacote")
 
         else: # timeout
-            print("servidor nao respondeu nenhuma das 4 tentativas de envio do pacote. \n TIMEOUT")
+            print("servidor nao respondeu nenhuma das tentativas de envio do pacote. \n TIMEOUT")
             head_to = (5).to_bytes(1, byteorder="big") + b'\x00'*9
             pl_to = b'\x00'
             com1.sendData(head_to + pl_to + eop)
             time.sleep(0.1)
+            arquivo('arquivo3.txt', head_to, pl_to, eop, 'envio')
             print("Mensagem de timeout (t5) enviada")
             return None
+        
+def arquivo(nome, head, pl, eop, env_receb, tipo_de_erro=''):
+    data_hora = datetime.now()
+    # tipo = int.from_bytes(head[0], byteorder='big')
+    tipo = head[0]
+    tamanho_bytes = len(head + pl + eop)
+    conteudo = f"{data_hora} / {env_receb} / {tipo} / {tamanho_bytes}"
+    if tipo == 3:
+        conteudo += f" / {head[4]} / {head[3]} / crc"
+        if tipo_de_erro != '':
+            conteudo += f" / {tipo_de_erro}"
+    elif tipo == 1 or tipo == 2:
+        conteudo += " / handshake"
+    with open(f"{nome}", "a") as file:
+        file.write(conteudo)
 
 def main():
     try:
@@ -90,6 +115,7 @@ def main():
         x = len(img) / 144
         for pedaco in range(round(x)):
             pedacos.append(img[(pedaco*144):((pedaco*144)+144)])
+        print(f"quantidade de pacotes: {len(pedacos)}")
 
         # montagem do handshake 
         h_h0 = (1).to_bytes(1, byteorder="big") # tipo da mensagem
@@ -108,7 +134,8 @@ def main():
 
         com1.sendData(np.asarray(h_head + h_payload + eop))
         time.sleep(0.1)
-        print("enviei msg t1")
+        print("enviei msg t1 (handshake)")
+        arquivo('arquivo1.txt', h_head, h_payload, eop, 'envio')
 
         # receber quantidade de comandos recebida pelo server
         hd = False
@@ -118,10 +145,11 @@ def main():
             if com1.rx.getIsEmpty() == False:
                 hd = True
                 head_receb, _ = com1.getData(10)
-                pl_receb, _ = com1.getData(head_receb[2])
-                eop_receb, _ = com1.getData(3)
-                if pl_receb == b'\x01' and eop_receb == b'\xaa\xbb\xcc\xdd':
+                pl_receb, _ = com1.getData(head_receb[5])
+                eop_receb, _ = com1.getData(4)
+                if head_receb[0] == 2 and eop_receb == b'\xaa\xbb\xcc\xdd':
                     print("mensagem t2 (handshake) recebida com sucesso")
+                    arquivo('arquivo1.txt', head_receb, pl_receb, eop_receb, 'receb')
                     resposta = envio(eop, pedacos, head_receb, com1)
                     if resposta == True:
                         print("envio de dados terminado com sucesso")
@@ -133,7 +161,8 @@ def main():
             print("reiniciar timer")
             head_to = (5).to_bytes(1, byteorder="big") + b'\x00'*9
             pl_to = b'\x00'
-            com1.sendData(head_to + pl_to + eop)
+            datagrama = head_to + pl_to + eop
+            com1.sendData(datagrama)
             time.sleep(0.1)
             print("Mensagem de timeout (t3) enviada")
             com1.disable()
