@@ -5,7 +5,7 @@ import numpy as np
 from datetime import datetime
 from crc import Crc16, Calculator
 
-serialName = "COM5"
+serialName = "COM3"
 
 crc = Calculator(Crc16.CCITT)
 
@@ -48,7 +48,7 @@ def main():
         pl, _ = com1.getData(head[5])
         eop_receb, _ = com1.getData(4)
 
-        arquivo('arquivo1.txt', head, pl, eop_receb, 'receb')
+        arquivo('servidor1.txt', head, pl, eop_receb, 'receb')
 
         while ocioso:
             if head[0] == 1 and head[1] == 1:
@@ -59,7 +59,7 @@ def main():
 
         numPckg = head[3]
 
-        recebido = ''
+        recebido = b''
 
         h0_t2 = (2).to_bytes(1, byteorder="big")
         h1 = b'\x00'
@@ -83,7 +83,7 @@ def main():
         print("\nMensagem tipo 2 enviada\n")
         print("-------------------------")
 
-        arquivo('arquivo1.txt', head_t2, pl_t2, eop, 'envio')
+        arquivo('servidor1.txt', head_t2, pl_t2, eop, 'envio')
 
         cont = 0
 
@@ -92,7 +92,7 @@ def main():
 
         lista_packages = [-1]
 
-        while cont <= numPckg:
+        while cont < numPckg:
             timer_1 = time.time()
             timer_2 = time.time()
 
@@ -101,28 +101,18 @@ def main():
                 print("-------------------------")
 
                 head_receb, _ = com1.getData(10)
-                print(f"\nRecebeu head \n")
-                for i in head_receb:
-                    print(i)
-
                 pl_receb, _ = com1.getData(head_receb[5])
-                print(f"\nRecebeu payload\n")
-
                 eop_receb, _ = com1.getData(4)
-                print(f"\nRecebeu eop\n")
 
                 print(f"\nPacote de número {cont} recebido\n")
                 print("-------------------------")
 
                 checando_crc = crc.checksum(pl_receb)
 
-                print(f"\n{checando_crc}\n")
-                print(f'\n{(head_receb[8]).to_bytes(2,byteorder="big")}\n')
-
-                if head_receb[0] == 3 and eop_receb == eop and checando_crc == (head_receb[8]):
+                if head_receb[0] == 3 and eop_receb == eop and checando_crc == int.from_bytes(head_receb[8:10], byteorder='big'):
                     # if payload correto e num pacote esperado correto
                     if head_receb[4] >= 0 and head_receb[4] <= head_receb[3] and head_receb[4] not in lista_packages and head_receb[4] == lista_packages[-1] + 1:
-                        arquivo('arquivo1.txt', head_receb, pl_receb, eop_receb, 'receb')
+                        arquivo('servidor1.txt', head_receb, pl_receb, eop_receb, 'receb')
                         
                         print(f"\nMensagem tipo 3 recebida corretamente, pacote de número {head_receb[4]}\n")
                         print("-------------------------")
@@ -147,12 +137,12 @@ def main():
                         head_t4 = h0_t4 + h1_t4 + h2_t4 + h3_t4 + h4_t4 + h5_t4 + h6_t4 + h7_t4 + h8_t4 + h9_t4
                         
                         msg_t4 = head_t4 + pl_t4 + eop
-                        print(f"\nMensagem tipo 4: {msg_t4}\n")
+                        print(f"\nMensagem tipo 4\n")
 
                         com1.sendData(np.asarray(msg_t4))
                         time.sleep(0.1)
 
-                        arquivo('arquivo1.txt', head_t4, pl_t4, eop, 'envio')
+                        arquivo('servidor1.txt', head_t4, pl_t4, eop, 'envio')
 
                         print(f"\nMensagem tipo 4 enviada, pacote de número {head_receb[4]}\n")
 
@@ -160,7 +150,7 @@ def main():
                         break
 
                     elif (head_receb[4] < 0 or head_receb[4] > head_receb[3]):
-                        arquivo('arquivo2.txt', head_receb, pl_receb, eop_receb, 'receb')
+                        arquivo('servidor2.txt', head_receb, pl_receb, eop_receb, 'receb')
                         
                         print(f"\nMensagem tipo 3 recebida com erro 1\n")
                         print("-------------------------")
@@ -183,14 +173,14 @@ def main():
                         com1.sendData(np.asarray(head_t6 + pl_t6 + eop))
                         time.sleep(0.1)
 
-                        arquivo('arquivo2.txt', head_t6, pl_t6, eop, 'envio')
+                        arquivo('servidor2.txt', head_t6, pl_t6, eop, 'envio')
 
                         print(f"\nMensagem tipo 6 enviada\n")
                         break
 
                     else:
                         if head_receb[4] in lista_packages:
-                            arquivo('arquivo2.txt', head_receb, pl_receb, eop_receb, 'receb')
+                            arquivo('servidor2.txt', head_receb, pl_receb, eop_receb, 'receb')
 
                             print(f"\nMensagem tipo 3 recebida com erro 2\n")
 
@@ -212,13 +202,13 @@ def main():
                             com1.sendData(np.asarray(head_t6 + pl_t6 + eop))
                             time.sleep(0.1)
 
-                            arquivo('arquivo2.txt', head_t6, pl_t6, eop, 'envio')
+                            arquivo('servidor2.txt', head_t6, pl_t6, eop, 'envio')
 
                             print(f"\nMensagem tipo 6 enviada\n")
                             break
                             
                         elif head_receb[4] != lista_packages[-1] + 1:
-                            arquivo('arquivo2.txt', head_receb, pl_receb, eop_receb, 'receb')
+                            arquivo('servidor2.txt', head_receb, pl_receb, eop_receb, 'receb')
 
                             print(f"\nMensagem tipo 3 recebida com erro 3\n")
 
@@ -240,7 +230,7 @@ def main():
                             com1.sendData(np.asarray(head_t6 + pl_t6 + eop))
                             time.sleep(0.1)
 
-                            arquivo('arquivo2.txt', head_t6, pl_t6, eop, 'envio')
+                            arquivo('servidor2.txt', head_t6, pl_t6, eop, 'envio')
 
                             print(f"\nMensagem tipo 6 enviada\n")
                             break
@@ -269,7 +259,7 @@ def main():
 
                             com1.sendData(np.asarray(head_t4 + pl_t4 + eop))
 
-                            arquivo('arquivo4.txt', head_t4, pl_t4, eop, 'envio')
+                            arquivo('servidor4.txt', head_t4, pl_t4, eop, 'envio')
 
                             timer_1 = time.time()
                     else:
@@ -281,7 +271,7 @@ def main():
 
                         com1.sendData(np.asarray(head_t5 + pl_5 + eop))
 
-                        arquivo('arquivo3.txt', head_t5, pl_5, eop, 'envio')
+                        arquivo('servidor3.txt', head_t5, pl_5, eop, 'envio')
 
                         print("\nMensagem tipo 5 enviada\n")
                         print("Time Out\n")
@@ -290,16 +280,15 @@ def main():
         
         if cont == numPckg:
             print("\nTodas as mensagens recebidas com sucesso\n")
-            print("-------------------------")
 
-            head_termino = b'x00' + numPckg + (1).to_bytes(1, byteorder="big") + b'\xaa'*9
+            head_termino = (4).to_bytes(1, byteorder="big") + b'\x00'*4 + (1).to_bytes(1, byteorder="big") + b'\xaa'*4
             com1.sendData(head_termino + b'\xdd' + eop)
             time.sleep(0.1)
-
-            arquivo('arquivo1.txt', head_termino, b'\xdd', eop, 'envio')
+            print('mensagem de confirmacao enviada')
 
             with open('output.png', 'wb') as image_file:
                 image_file.write(recebido)
+            print('Imagem recebida salva')
 
         print("-------------------------")
         print("Comunicação encerrada")
