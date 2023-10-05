@@ -11,7 +11,6 @@ crc = Calculator(Crc16.CCITT)
 
 def arquivo(nome, head, pl, eop, env_receb, tipo_de_erro=''):
     data_hora = datetime.now()
-    # tipo = int.from_bytes(head[0], byteorder='big')
     tipo = head[0]
     tamanho_bytes = len(head + pl + eop)
     conteudo = f"{data_hora} / {env_receb} / {tipo} / {tamanho_bytes}"
@@ -219,7 +218,10 @@ def main():
                             h4_t6 = b'\x00'
                             h5_t6 = (1).to_bytes(1, byteorder="big")
                             h6_t6 = (lista_packages[-1] + 1).to_bytes(1, byteorder="big")
-                            h7_t6 = (lista_packages[-1]).to_bytes(1, byteorder="big")
+                            if lista_packages[-1] == -1:
+                                h7_t6 = (0).to_bytes(1, byteorder="big")
+                            else:
+                                h7_t6 = (lista_packages[-1]).to_bytes(1, byteorder="big")
                             h8_t6 = b'\x00'
                             h9_t6 = b'\x00'
 

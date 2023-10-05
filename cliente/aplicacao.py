@@ -14,16 +14,21 @@ def envio(eop, pedacos, com1):
     qntd_pacotes = len(pedacos)
     i = 0
     x = 0
-    while i <= qntd_pacotes:
-        # simulando erro de arquivo fora de ordem
-        # if i == 1:
-        #     payload = pedacos[i+1]
+    
+    # para simulacoes de erro, descomentar linha abaixo:
+    # erro = True
 
-        # simulando erro de arquivo sendo enviado repetidamente
-        # if i == 1:
-        #     payload = pedacos[i-1]
+    while i <= qntd_pacotes:
 
         if i != qntd_pacotes:
+
+            # simulando erro de arquivo fora de ordem
+            # if i == 1 and erro == True:
+            #     i = 2
+
+            # simulando erro de arquivo sendo enviado repetidamente
+            # if i == 1 and erro == True:
+            #     i = 0
 
             payload = pedacos[i]
 
@@ -35,7 +40,7 @@ def envio(eop, pedacos, com1):
             h3 = (qntd_pacotes).to_bytes(1, byteorder='big')
             h4 = (i).to_bytes(1, byteorder='big')
             h5 = (tamanho_pl).to_bytes(1, byteorder='big')
-            h6 = (i).to_bytes(1, byteorder='big')
+            h6 = (x).to_bytes(1, byteorder='big')
             h7 = (x).to_bytes(1, byteorder='big')
             h8_9 = (CRC.checksum(payload)).to_bytes(2, byteorder='big') # crcs
             head_pacote = h0 + h1 + h2 + h3 + h4 + h5 + h6 + h7 + h8_9
@@ -53,24 +58,32 @@ def envio(eop, pedacos, com1):
                     head_confirm, _ = com1.getData(10)
                     confirm, _ = com1.getData(head_confirm[5])
                     eop_confirm, _ = com1.getData(4)
-                    if eop_confirm == eop and head_confirm[0] == 4:
+                    if eop_confirm == eop and (head_confirm[0] == 4 or head_confirm[0] == 6):
                         # aa = recebeu certo, bb = recebeu errado, cc = recebeu ultimo
                         if confirm == b'\xaa':
                             print(f"\nconfirmou recebimento do pacote {i} corretamente")
-                            arquivo('client1.txt', head_confirm, confirm, eop_confirm, 'receb')                  
+                            arquivo('client1.txt', head_confirm, confirm, eop_confirm, 'receb')
+                            x = i               
                             i += 1
                             enviar_prox = True
                             break
-                        elif confirm == b'\xbb': # recebeu mensagem t6 que arquivo foi corrompido
+                        elif confirm == b'\xbb' and head_confirm[0] == 6: # recebeu mensagem t6 que arquivo foi corrompido
                             print(f"\nrecebeu pacote {i} corrompido")
                             enviar_prox = True
                             break
-                        elif confirm == b'\xcc': # recebeu mensagem t6 que o arquivo veio fora de ordem
+                        elif confirm == b'\xcc' and head_confirm[0] == 6: # recebeu mensagem t6 que o arquivo veio fora de ordem
                             print("\nrecebeu pacote fora de ordem ou repetido")
-                            if head_confirm[2] == b'\xaa':
+                            if (head_confirm[2]).to_bytes(1, byteorder='big') == b'\xaa':
                                 arquivo('client2.txt', head_confirm, confirm, eop_confirm, 'receb', 'fora de ordem')
-                            elif head_confirm[2] == b'\xbb':
+                            elif (head_confirm[2]).to_bytes(1, byteorder='big') == b'\xbb':
                                 arquivo('client2.txt', head_confirm, confirm, eop_confirm, 'receb', 'repetido')
+
+                            # durante simulacao de erro:
+                            # erro = False
+
+                            i = x + 1
+                            enviar_prox = True
+                            break
                         elif confirm == b'\xdd':
                             print(f"\nterminou de receber os pacotes corretamente")
                             return True
@@ -90,7 +103,6 @@ def envio(eop, pedacos, com1):
         
 def arquivo(nome, head, pl, eop, env_receb, tipo_de_erro=''):
     data_hora = datetime.now()
-    # tipo = int.from_bytes(head[0], byteorder='big')
     tipo = head[0]
     tamanho_bytes = len(head + pl + eop)
     conteudo = f"{data_hora} / {env_receb} / {tipo} / {tamanho_bytes}"
